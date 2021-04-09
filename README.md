@@ -1,7 +1,7 @@
 # SDS-project
 Git repository for the SDS (S2021) final project: 
 
-Only agregates (cardinality of lists of shared followers) may be found in the shared data. Data is fully anonimized. 
+Only aggregates (cardinality of lists of shared followers) may be found in the shared data. Data is fully anonimized. 
 
 The dataset may be rebuilt by retrieving follower list from newspaper's Twitter account as described in the report. Note that data will not be exactly the same, as followers lists will be different at another point in time (the data for this analysis is of february 2021).
 
