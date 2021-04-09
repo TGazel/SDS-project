@@ -23,7 +23,7 @@ for (name in twitterIDs){
   print(name)
   
   id <- lookup_users(name)$user_id
-  followers <- get_followers(user = id, n = Inf, retryonratelimit = T)
+  assign(name, get_followers(user = id, n = Inf, retryonratelimit = T))
   save(followers, file = paste0("Follower lists/", name, ".RData"))
 }
 

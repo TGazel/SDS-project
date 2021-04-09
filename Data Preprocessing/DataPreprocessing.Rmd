@@ -13,31 +13,16 @@ output:
 knitr::opts_chunk$set(eval = FALSE)
 ```
 
-## Get Followers From Twitter
-Below is an example using "timeshighered". Repeat for 36 newspaper accounts.
-```{r message=FALSE, warning=FALSE}
-library(rtweet)
-timeshighered <- get_followers(
-  "timeshighered",
-  n = Inf,
-  retryonratelimit = TRUE,
-  parse = TRUE,
-  verbose = TRUE,
-  token = bearer_token()
-)
-save(timeshighered, file="timeshighered.RData")
-```
-
 ## Clean Data
 To analyze newspapers with multiple accounts, we firstly transfer all data of unique accounts.
 
 ```{r warning=FALSE}
-dir.create("data/CleanData", showWarnings = F)
+dir.create("CleanData", showWarnings = F)
 
 # Financial Times
 
-load("data/Follower lists/FinancialTimes.RData")
-load("data/Follower lists/FT.RData")
+load("Follower lists/FinancialTimes.RData")
+load("Follower lists/FT.RData")
 commonFols <- merge(FinancialTimes, FT)
 print(nrow(commonFols))
 # 2224889
@@ -45,48 +30,49 @@ print(nrow(commonFols))
 # breaking news and insights, the FT account also adds "big stories", hence we
 # will merge their followers together
 FTmerged <- merge(FinancialTimes, FT, all = T) # 9127337
-save(FTmerged, file="data/CleanData/FinancialTimes.RData")
+save(FTmerged, file="CleanData/FinancialTimes.RData")
 
 # Guardian
 
-load("data/Follower lists/guardian.RData")
-load("data/Follower lists/guardiannews.RData")
+load("Follower lists/guardian.RData")
+load("Follower lists/guardiannews.RData")
 commonFols <- merge(guardian, guardiannews)
 print(nrow(commonFols))
 # 2339838
 # Overlap is very high, guardian covers gaurdiannews content (+ additional topics),
 # therefore, will be merged into single node in graph
 Gmerged <- merge(guardian, guardiannews, all = T) # 10731460
-save(Gmerged, file="data/CleanData/guardian.RData")
+save(Gmerged, file="CleanData/guardian.RData")
 
 # Daily Mail
 
-load("data/Follower lists/MailOnline.RData")
-load("data/Follower lists/DailyMailUK.RData")
+load("Follower lists/MailOnline.RData")
+load("Follower lists/DailyMailUK.RData")
 commonFols <- merge(DailyMailUK, MailOnline)
 print(nrow(commonFols))
 # 293912
 # Overlap is quite high, coverage broadly includes the same content
 # therefore, will be merged into single node in graph
 Mailmerged <- merge(DailyMailUK, MailOnline, all = T) # 2836576
-save(Mailmerged, file="data/CleanData/MailOnline.RData")
+save(Mailmerged, file="CleanData/MailOnline.RData")
 
 # The Sun
 
-load("data/Follower lists/TheSun.RData")
-load("data/Follower lists/Fabulousmag.RData")
+load("Follower lists/TheSun.RData")
+load("Follower lists/Fabulousmag.RData")
 commonFols <- merge(TheSun, Fabulousmag)
 print(nrow(commonFols))
 # 18695
 # Overlap is low and second account has too few followers to be relevant, so it will be droped
 # Also allows us to consider The Sun and The Sun on Sundays as a single newspaper
+save(TheSun, file="CleanData/TheSun.RData")
 
 # Evening Standard
 
-load("data/Follower lists/EveningStandard.RData")   # 131560
-load("data/Follower lists/standardnews.RData")      # 639703 - most followed!
-load("data/Follower lists/standardsport.RData")     #  42006
-load("data/Follower lists/standardcity.RData")      #   7791
+load("Follower lists/EveningStandard.RData")   # 131560
+load("Follower lists/standardnews.RData")      # 639703 - most followed!
+load("Follower lists/standardsport.RData")     #  42006
+load("Follower lists/standardcity.RData")      #   7791
 commonFols <- merge(standardnews, EveningStandard)
 print(nrow(commonFols))
 # 90125
@@ -116,36 +102,38 @@ print(nrow(commonFols))
 
 # Merge two main accounts
 ESmerged <- merge(standardnews, EveningStandard, all = T) # 681138
-save(ESmerged, file="data/CleanData/standardnews.RData")
+save(ESmerged, file="CleanData/standardnews.RData")
 
 # Metro
 
-load("data/Follower lists/MetroUK.RData")
-load("data/Follower lists/MetroScotland.RData")
+load("Follower lists/MetroUK.RData")
+load("Follower lists/MetroScotland.RData")
 commonFols <- merge(MetroUK, MetroScotland)
 print(nrow(commonFols))
 # 406
 # Overlap is low, but Scotland account has too few followers to be relevant
+save(MetroUK, file="CleanData/MetroUK.RData")
 
 # Daily Star
 
-load("data/Follower lists/dailystar.RData")
-load("data/Follower lists/DStarPics.RData")
+load("Follower lists/dailystar.RData")
+load("Follower lists/DStarPics.RData")
 commonFols <- merge(dailystar, DStarPics)
 print(nrow(commonFols))
 # 4096
 # The DStarPics account has too few followers to be relevat to our network
+save(dailystar, file="CleanData/dailystar.RData")
 ```
 
 ## Construct Dataframe
 Further, we construct dataframes for graph construction later. Both directed and undirected cases are considered.
 
-To run this part, please make sure that directory: "data/CleanData" is available. Or you can directly start from chunk: "load data".
+To run this part, please make sure that directory: "CleanData" is available. Or you can directly start from chunk: "load data".
 
 Construct dataframe for directed graph.
 
 ```{r directed data, warning=FALSE}
-route = "data/CleanData"
+route = "CleanData"
 files <- list.files(route, pattern="*.RData")
 
 newspapers <- data.frame(matrix(ncol = 6, nrow = 0))
@@ -180,7 +168,7 @@ newspapers <- transform(newspapers, f1=as.numeric(f1),f2=as.numeric(f2),nshare=a
 
 Construct dataframe for undirected graph.
 ```{r undirected data, warning=FALSE}
-route = "data/CleanData"
+route = "CleanData"
 files <- list.files(route, pattern="*.RData")
 
 newspapers_un <- data.frame(matrix(ncol = 6, nrow = 0))
@@ -214,7 +202,7 @@ newspapers_un <- transform(newspapers_un, f1=as.numeric(f1),f2=as.numeric(f2),ns
 
 Compute total users in domain.
 ```{r total ids, warning=FALSE}
-route = "data/CleanData"
+route = "CleanData"
 files <- list.files(route, pattern="*.RData")
 ids <- c()
 
