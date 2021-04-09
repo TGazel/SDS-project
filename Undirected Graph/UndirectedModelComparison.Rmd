@@ -1,0 +1,84 @@
+---
+title: "Undirected Model Analysis"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+---
+
+## Load data
+
+"newspapers_un.Rdata" is for undirected graph. Since there is no direction for edges, it only has half of the rows comparing with "newspapers.Rdata".
+
+"ntotal.Rdata" is the total number of twitter followers in the newspaper space of interests.
+
+Our domain includes 27 newspapers (after preprocess).
+
+
+```{r load data, message=FALSE, warning=FALSE}
+# Create plot directory, if it doesn't exist
+dir.create("plot", showWarnings = F)
+
+ 
+load("newspapers_un.Rdata")    
+load("ntotal.RData")
+library(ggraph)
+library(tidygraph)
+library(dplyr)
+library(igraph)
+
+
+```
+
+## Model Construction
+```{r compare}
+newspapers_un %>%  transform(weight = nshare/nunion) %>%
+  transform(new_weight = (weight-mean(weight)/sd(weight,na.rm = F))) %>%
+    transform(w1= f1/ntotal,w2= f2/ntotal) %>% 
+    transform(avg_weight = ntotal*w1*w2,sd_weight = sqrt(ntotal*w1*w2*(1-w1*w2))) %>%
+  distinct() -> edges
+
+```
+
+
+## Histgram Analysis
+```{r analysis}
+hist(edges$weight,breaks = 20)
+abline(v=mean(edges$weight), lty=2, col="red", lwd=2)
+
+
+hist(edges$new_weight,breaks = 20)
+abline(v=mean(edges$new_weight), lty=2, col="red", lwd=2)
+
+hist(edges$avg_weight,breaks = 20)
+abline(v=mean(edges$avg_weight), lty=2, col="red", lwd=2)
+
+hist(edges$sd_weight,breaks = 20)
+abline(v=mean(edges$sd_weight), lty=2, col="red", lwd=2)
+
+
+```
+
+
+## Correlation Analysis
+```{r}
+cor1 <- cor(edges$new_weight,edges$avg_weight,method = "pearson")
+
+plot(edges$new_weight, edges$avg_weight,
+     xlab = "Edge weight of Experimental Model", ylab = "Edge Weight of Probabilistic Model",
+     pch = 19, frame = FALSE)
+abline(lm(avg_weight ~ new_weight, data = edges), col = "blue")
+text(x=-0.1,y=3e+06,labels= paste("Corr: ",round(cor1,2)))
+
+
+
+cor2 <- cor(edges$avg_weight,edges$nshare,method = "pearson")
+plot(edges$nshare, edges$avg_weight,
+     xlab = "# Shared Followers", ylab = "Estimation of Probabilistic Null model",
+     pch = 19, frame = FALSE)
+abline(lm(avg_weight ~ nshare, data = edges), col = "blue")
+text(x=2/3 *max(edges$nshare),y=4e+06,labels= paste("Corr: ",round(cor2,3)))
+
+
+```
