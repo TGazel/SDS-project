@@ -1,0 +1,232 @@
+
+
+---
+title: "Data Preprocessing"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+## Get Followers From Twitter
+Below is an example using "timeshighered". Repeat for 36 newspaper accounts.
+```{r message=FALSE, warning=FALSE}
+library(rtweet)
+timeshighered <- get_followers(
+  "timeshighered",
+  n = Inf,
+  retryonratelimit = TRUE,
+  parse = TRUE,
+  verbose = TRUE,
+  token = bearer_token()
+)
+save(timeshighered, file="timeshighered.RData")
+```
+
+## Clean Data
+To analyze newspapers with multiple accounts, we firstly transfer all data of unique accounts.
+
+```{r warning=FALSE}
+dir.create("data/CleanData", showWarnings = F)
+
+# Financial Times
+
+load("data/Follower lists/FinancialTimes.RData")
+load("data/Follower lists/FT.RData")
+commonFols <- merge(FinancialTimes, FT)
+print(nrow(commonFols))
+# 2224889
+# Overlap of approx. 50%, while the FinancialTimes account focuses only focuses on
+# breaking news and insights, the FT account also adds "big stories", hence we
+# will merge their followers together
+FTmerged <- merge(FinancialTimes, FT, all = T) # 9127337
+save(FTmerged, file="data/CleanData/FinancialTimes.RData")
+
+# Guardian
+
+load("data/Follower lists/guardian.RData")
+load("data/Follower lists/guardiannews.RData")
+commonFols <- merge(guardian, guardiannews)
+print(nrow(commonFols))
+# 2339838
+# Overlap is very high, guardian covers gaurdiannews content (+ additional topics),
+# therefore, will be merged into single node in graph
+Gmerged <- merge(guardian, guardiannews, all = T) # 10731460
+save(Gmerged, file="data/CleanData/guardian.RData")
+
+# Daily Mail
+
+load("data/Follower lists/MailOnline.RData")
+load("data/Follower lists/DailyMailUK.RData")
+commonFols <- merge(DailyMailUK, MailOnline)
+print(nrow(commonFols))
+# 293912
+# Overlap is quite high, coverage broadly includes the same content
+# therefore, will be merged into single node in graph
+Mailmerged <- merge(DailyMailUK, MailOnline, all = T) # 2836576
+save(Mailmerged, file="data/CleanData/MailOnline.RData")
+
+# The Sun
+
+load("data/Follower lists/TheSun.RData")
+load("data/Follower lists/Fabulousmag.RData")
+commonFols <- merge(TheSun, Fabulousmag)
+print(nrow(commonFols))
+# 18695
+# Overlap is low and second account has too few followers to be relevant, so it will be droped
+# Also allows us to consider The Sun and The Sun on Sundays as a single newspaper
+
+# Evening Standard
+
+load("data/Follower lists/EveningStandard.RData")   # 131560
+load("data/Follower lists/standardnews.RData")      # 639703 - most followed!
+load("data/Follower lists/standardsport.RData")     #  42006
+load("data/Follower lists/standardcity.RData")      #   7791
+commonFols <- merge(standardnews, EveningStandard)
+print(nrow(commonFols))
+# 90125
+# Very high overlap, a clear mojority of the EveningStandard account followers 
+# are here for the news, hence the two accounts will be merged
+
+commonFols <- merge(standardnews, standardsport)
+print(nrow(commonFols))
+# 6245
+commonFols <- merge(standardsport, EveningStandard)
+print(nrow(commonFols))
+# 3599
+# Low overlap with news account (and general one), we can deduce that standardsport
+# is followed by different people (but the sample is still too small for relevance)
+
+commonFols <- merge(standardnews, standardcity)
+print(nrow(commonFols))
+# 3715
+commonFols <- merge(standardcity, EveningStandard)
+print(nrow(commonFols))
+# 2195
+commonFols <- merge(standardcity, standardsport)
+print(nrow(commonFols))
+# 372
+# The city account focuses on London. The is significant overlap with the 
+# standardnews account, but much less with the general account, so it will be discarded
+
+# Merge two main accounts
+ESmerged <- merge(standardnews, EveningStandard, all = T) # 681138
+save(ESmerged, file="data/CleanData/standardnews.RData")
+
+# Metro
+
+load("data/Follower lists/MetroUK.RData")
+load("data/Follower lists/MetroScotland.RData")
+commonFols <- merge(MetroUK, MetroScotland)
+print(nrow(commonFols))
+# 406
+# Overlap is low, but Scotland account has too few followers to be relevant
+
+# Daily Star
+
+load("data/Follower lists/dailystar.RData")
+load("data/Follower lists/DStarPics.RData")
+commonFols <- merge(dailystar, DStarPics)
+print(nrow(commonFols))
+# 4096
+# The DStarPics account has too few followers to be relevat to our network
+```
+
+## Construct Dataframe
+Further, we construct dataframes for graph construction later. Both directed and undirected cases are considered.
+
+To run this part, please make sure that directory: "data/CleanData" is available. Or you can directly start from chunk: "load data".
+
+Construct dataframe for directed graph.
+
+```{r directed data, warning=FALSE}
+route = "data/CleanData"
+files <- list.files(route, pattern="*.RData")
+
+newspapers <- data.frame(matrix(ncol = 6, nrow = 0))
+names <- c("n1", "n2", "f1","f2","nshare","nunion")
+colnames(newspapers) <- names
+
+temp=1
+for (i in c(1:length(files))){
+  name1 <- load(paste(route, "/",files[i], sep = ""))
+  target1 <- get(ls()[ls() == name1])
+  f1 <- length(target1$user_id)
+  
+  for (j in c(1:length(files))){
+    if(i != j){
+  cat(i,", ",j,sep="")
+  name2 <- load(paste(route, "/",files[j], sep = ""))
+#  cat(name1,", ",name2,sep="")
+  target2 <- get(ls()[ls() == name2])
+  f2 <- length(target2$user_id)
+  nshare <- length(intersect(target1$user_id,target2$user_id))
+  nunion <- length(union(target1$user_id,target2$user_id))
+  newspapers[temp,] = c(name1,name2,f1,f2,nshare,nunion)
+  temp <- temp + 1
+    }
+  }
+}
+
+newspapers <- transform(newspapers, f1=as.numeric(f1),f2=as.numeric(f2),nshare=as.numeric(nshare),nunion=as.numeric(nunion))
+
+#save(newspapers, file="newspapers.RData")
+```
+
+Construct dataframe for undirected graph.
+```{r undirected data, warning=FALSE}
+route = "data/CleanData"
+files <- list.files(route, pattern="*.RData")
+
+newspapers_un <- data.frame(matrix(ncol = 6, nrow = 0))
+names <- c("n1", "n2", "f1","f2","nshare","nunion")
+colnames(newspapers_un) <- names
+temp=1
+for (i in c(1:length(files))){
+  name1 <- load(paste(route, "/",files[i], sep = ""))
+  target1 <- get(ls()[ls() == name1])
+  f1 <- length(target1$user_id)
+  
+  for (j in c(i:length(files))){
+    if(i != j){
+  cat(i," ",j,",",sep="")
+  name2 <- load(paste(route, "/",files[j], sep = ""))
+#  cat(name1,", ",name2,sep="")
+  target2 <- get(ls()[ls() == name2])
+  f2 <- length(target2$user_id)
+  nshare <- length(intersect(target1$user_id,target2$user_id))
+  nunion <- length(union(target1$user_id,target2$user_id))
+  newspapers_un[temp,] = c(name1,name2,f1,f2,nshare,nunion)
+  temp <- temp + 1
+    }
+  }
+}
+
+newspapers_un <- transform(newspapers_un, f1=as.numeric(f1),f2=as.numeric(f2),nshare=as.numeric(nshare),nunion=as.numeric(nunion))
+
+#save(newspapers_un, file="newspapers_un.RData")
+```
+
+Compute total users in domain.
+```{r total ids, warning=FALSE}
+route = "data/CleanData"
+files <- list.files(route, pattern="*.RData")
+ids <- c()
+
+for (i in c(1:length(files))){
+
+  cat(i,sep="")
+  name <- load(paste(route, "/",files[i], sep = ""))
+  target <- get(ls()[ls() == name])
+  ids <- union(ids,target$user_id)
+}
+
+ntotal <- length(ids)
+cat('Total numebr of ids: ',ntotal, sep = "")
+#save(ntotal, file="ntotal.RData")
+```
