@@ -1,0 +1,256 @@
+---
+title: "Undirected Probabilistic Graph Analysis"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+---
+
+# Load Data
+
+"newspapers_un.Rdata" is for undirected graph. Since there is no direction for edges, it only has half of the rows comparing with "newspapers.Rdata".
+
+"ntotal.Rdata" is the total number of twitter followers in the newspaper space of interests.
+
+Our domain includes 27 newspapers (after preprocess).
+
+
+```{r load data, message=FALSE, warning=FALSE}
+#load("newspapers.RData")
+load("newspapers_un.RData")
+load("ntotal.RData")
+load("newsAttributes.RData")
+library(ggraph)
+library(tidygraph)
+library(dplyr)
+library(igraph)
+library(assortnet)
+
+newsAttributes$Topic <- ifelse(newsAttributes$Topic=="General", "General", "Specific")
+newsAttributes$Broadness <- ifelse(newsAttributes$Location == "Local" | newsAttributes$Topic == "Specific"   , "Specific","Broad")
+newsAttributes$Location <- factor(newsAttributes$Location)
+newsAttributes$Broadness <- factor(newsAttributes$Broadness)
+newsAttributes$Topic <- factor(newsAttributes$Topic)
+newsAttributes$Format <- factor(newsAttributes$Format)
+newsAttributes$Seriousness <- factor(newsAttributes$Seriousness)
+newsAttributes$PoliticalOrientation <- factor(newsAttributes$PoliticalOrientation)
+```
+
+
+
+# Construct Graph
+## Undirected filtered graph
+Use Binomial distributed edges.
+```{r graph with binomial edges assumption, fig.height=10, fig.width=15, warning=FALSE}
+vertices <- data.frame(id=unique(c(newspapers_un$n1,newspapers_un$n2)))
+vertices<-merge(x = vertices, y = newsAttributes)
+
+for (gamma in c(3)){
+
+newspapers_un %>% 
+    transform(w1= f1/ntotal,w2= f2/ntotal) %>% 
+    transform(avg_weight = ntotal*w1*w2,sd_weight = sqrt(ntotal*w1*w2*(1-w1*w2))) %>%
+    select(from=n1, to=n2,nshare,avg_weight,sd_weight) %>%
+    filter((nshare-avg_weight)/sd_weight > gamma ) %>%
+    distinct() -> edges
+  
+ud_graph <- tbl_graph(nodes=vertices, edges = edges, node_key = "id", directed = FALSE)
+ud_graph %>% 
+  activate(nodes) %>% activate(edges) %>% mutate(Shared_followers=nshare)->ud_graph 
+
+
+ud_graph %>% ggraph() + geom_node_point(colour="red", size=3) + geom_edge_link(aes(color=Shared_followers,width=Shared_followers))  + geom_node_text(size=6,color='white',aes(label=id)) +  theme_graph(background ='grey')
+#(paste('plot/udf_bi_g',gamma, '.png', sep = ''), width = 10, height = 10, units = 'in')
+
+}
+```
+## Graph Analysis
+### Compute assortativities
+```{r Assortativity, warning=FALSE}
+ud_graph %>% 
+  activate(nodes) %>% activate(edges) %>% mutate(weight=nshare)->ud_graph 
+
+ud_graph %>% 
+  activate(nodes) %>% 
+  mutate(deg=centrality_degree()) %>% 
+  mutate(assort = graph_assortativity(attr=deg))%>% 
+  mutate(assort_polit = graph_assortativity(attr=PoliticalOrientation))%>% 
+  mutate(assort_seriousness = graph_assortativity(attr=Seriousness))%>% 
+  mutate(assort_format = graph_assortativity(attr=Format))%>% 
+  mutate(assort_topic = graph_assortativity(attr=Topic))%>% 
+  mutate(assort_Location = graph_assortativity(attr=Location))%>% 
+  mutate(assort_Broadness = graph_assortativity(attr=Broadness))->ud_graph 
+
+ud_graph%>% pull(assort) %>% head(1)
+ud_graph%>% pull(assort_polit) %>% head(1)
+ud_graph%>% pull(assort_seriousness) %>% head(1)
+ud_graph%>% pull(assort_format) %>% head(1)
+ud_graph%>% pull(assort_topic) %>% head(1)
+ud_graph%>% pull(assort_Location) %>% head(1)
+ud_graph%>% pull(assort_Broadness) %>% head(1)
+```
+
+### Find communities
+```{r Find communities}
+ud_graph %>% 
+  activate(nodes) %>% 
+  mutate(community=as.character(group_louvain(weights = NULL))) -> ud_graph
+
+ud_graph %>% 
+  activate(nodes) %>% 
+  as_tibble()
+```
+
+Compute assortativities based on communities
+```{r}
+
+ud_graph %>% 
+  activate(nodes) %>% 
+  mutate(assort_comm = graph_assortativity(attr=community))->ud_graph 
+
+ud_graph%>% pull(assort_comm) %>% head(1)
+
+```
+
+### Modularity without weights
+```{r Compute modularity without weights}
+ud_graph %>% 
+  activate(nodes) %>% mutate(modularity = graph_modularity(group=deg)) %>% 
+  mutate(modularity_comm = graph_modularity(group=community)) %>% 
+  mutate(modularity_polit = graph_modularity(group=PoliticalOrientation)) %>% 
+  mutate(modularity_seriousness = graph_modularity(group=Seriousness)) %>% 
+  mutate(modularity_format = graph_modularity(group=Format)) %>% 
+  mutate(modularity_topic = graph_modularity(group=Topic)) %>% 
+  mutate(modularity_Location = graph_modularity(group=Location))%>% 
+  mutate(modularity_Broadness = graph_modularity(group=Broadness))->ud_graph
+  
+ud_graph %>% pull(modularity) %>% head(1)
+ud_graph %>% pull(modularity_comm) %>% head(1)
+ud_graph %>% pull(modularity_polit) %>% head(1)
+ud_graph %>% pull(modularity_seriousness) %>% head(1)
+ud_graph %>% pull(modularity_format) %>% head(1)
+ud_graph %>% pull(modularity_topic) %>% head(1)
+ud_graph %>% pull(modularity_Location) %>% head(1)
+ud_graph %>% pull(modularity_Broadness) %>% head(1)
+```
+
+### Centralities and K core
+```{r Centralities and k core, warning=FALSE}
+ud_graph %>% activate(nodes) %>%
+ mutate(deg_cen = centrality_degree()) %>%
+ mutate(close_cen = centrality_closeness()) ->ud_graph
+ud_graph %>%  activate(nodes) %>%  mutate(kcore=as.factor(node_coreness())) ->ud_graph
+ud_graph%>% arrange(desc(deg_cen)) %>% as_tibble() %>% head(10)
+ud_graph %>% as_tibble() -> proba_model_results
+#save(data=proba_model_results,file = "./proba_model_results.RData")
+```
+
+### Graph plot
+```{r Graphs, fig.height=10, fig.width=15, warning=FALSE}
+
+ud_graph %>% ggraph()  + geom_edge_link(aes(color=Shared_followers,width=Shared_followers))  + geom_node_text(size=6,color='black',aes(label=id)) +  theme_graph(background ='white') + geom_node_point(size=3,aes(color=community))+ scale_edge_colour_gradient2(low = "white",mid = "grey",high = "black",midpoint = 0,space = "Lab",na.value = "grey50",guide = "edge_colourbar") + ggtitle(paste('Binomial Model Graph Communities  ', sep = ''))
+
+ud_graph %>% ggraph()  + geom_edge_fan(color="lightblue", strength = 2, show.legend = T)   + geom_node_text(size=6,color='black',aes(label=id)) +  theme_graph(background ='white') + geom_node_point(size=3,aes(color=community))+ scale_edge_colour_gradient2(low = "white",mid = "grey",high = "black",midpoint = 0,space = "Lab",na.value = "grey50",guide = "edge_colourbar") + ggtitle(paste('Binomial Model Graph Communities  ', sep = ''))
+
+ud_graph %>% ggraph()  + geom_edge_link(aes(color=Shared_followers,width=Shared_followers))  + geom_node_text(size=6,color='black',aes(label=id)) +  theme_graph(background ='white') + geom_node_point(size=3,aes(color=kcore))+ scale_edge_colour_gradient2(low = "white",mid = "grey",high = "black",midpoint = 0,space = "Lab",na.value = "grey50",guide = "edge_colourbar") + ggtitle(paste('Binomial Model Graph K cores', sep = ''))
+
+
+ud_graph %>% ggraph()  + geom_edge_fan(color="lightblue", strength = 2, show.legend = T)  + geom_node_text(size=6,color='black',aes(label=id)) +  theme_graph(background ='white') + geom_node_point(size=3,aes(color=kcore))+ scale_edge_colour_gradient2(low = "white",mid = "grey",high = "black",midpoint = 0,space = "Lab",na.value = "grey50",guide = "edge_colourbar") + ggtitle(paste('Binomial Model Graph K cores', sep = ''))
+
+ud_graph %>% ggraph()  + geom_edge_link(aes(color=Shared_followers,width=Shared_followers))  + geom_node_text(size=6,color='black',aes(label=id)) +  theme_graph(background ='white') + geom_node_point(size=3,aes(color=Broadness))+ scale_edge_colour_gradient2(low = "white",mid = "grey",high = "black",midpoint = 0,space = "Lab",na.value = "grey50",guide = "edge_colourbar") + ggtitle(paste('Binomial Model Graph by Broadness  ', sep = ''))
+
+ud_graph %>% ggraph()  + geom_edge_fan(color="lightblue", strength = 2, show.legend = T)  + geom_node_text(size=6,color='black',aes(label=id)) +  theme_graph(background ='white') + geom_node_point(size=3,aes(color=Broadness))+ scale_edge_colour_gradient2(low = "white",mid = "grey",high = "black",midpoint = 0,space = "Lab",na.value = "grey50",guide = "edge_colourbar") + ggtitle(paste('Binomial Model Graph by Broadness  ', sep = ''))
+
+
+
+
+
+```
+
+```{r fig.height=10, fig.width=15, warning=FALSE}
+ud_graph %>% ggraph()  + geom_edge_fan(color="lightblue", strength = 2, show.legend = T)  + geom_node_text(size=6,color='black',aes(label=id)) +  theme_graph(background ='white') + geom_node_point(size=4,aes(color=kcore))+ scale_edge_colour_gradient2(low = "white",mid = "grey",high = "black",midpoint = 0,space = "Lab",na.value = "grey50",guide = "edge_colourbar") + ggtitle(paste('Binomial Model Graph K cores', sep = ''))
+#ggsave(paste('plot/binomial_kcores', '.png', sep = ''), width = 15, height = 10, units = 'in')
+
+
+ud_graph %>% ggraph()  + geom_edge_fan(color="lightblue", strength = 2, show.legend = T)   + geom_node_text(size=6,color='black',aes(label=id)) +  theme_graph(background ='white') + geom_node_point(size=4,aes(color=community))+ scale_edge_colour_gradient2(low = "white",mid = "grey",high = "black",midpoint = 0,space = "Lab",na.value = "grey50",guide = "edge_colourbar") + ggtitle(paste('Binomial Model Graph Communities  ', sep = ''))
+#ggsave(paste('plot/binomial_communities', '.png', sep = ''), width = 10, height = 10, units = 'in')
+
+ud_graph %>% ggraph()  + geom_edge_fan(color="lightblue", strength = 2, show.legend = T)  + geom_node_text(size=6,color='black',aes(label=id)) +  theme_graph(background ='white') + geom_node_point(size=4,aes(color=Broadness))+ scale_edge_colour_gradient2(low = "white",mid = "grey",high = "black",midpoint = 0,space = "Lab",na.value = "grey50",guide = "edge_colourbar") + ggtitle(paste('Binomial Model Graph by Broadness  ', sep = ''))
+#ggsave(paste('plot/binomial_Broadness', '.png', sep = ''), width = 15, height = 10, units = 'in')
+
+
+```
+```{r graph with attributes, fig.height=10, fig.width=15, warning=FALSE}
+vertices <- data.frame(id=unique(c(newspapers_un$n1,newspapers_un$n2)))
+verticesMerged <- inner_join(vertices, newsAttributes)
+
+gamma <- 0
+
+  newspapers_un %>% 
+    transform(w1= f1/ntotal,w2= f2/ntotal) %>% 
+    transform(avg_weight = ntotal*w1*w2,sd_weight = sqrt(ntotal*w1*w2*(1-w1*w2))) %>%
+    select(from=n1, to=n2,nshare,avg_weight,sd_weight) %>%
+    filter((nshare-avg_weight)/sd_weight > gamma ) %>%
+    distinct() -> edges
+
+  ud_graph <- tbl_graph(nodes=verticesMerged, edges = edges, node_key = "id", directed = F)
+  ud_graph %>%  activate(nodes) %>% mutate(deg = centrality_degree()) %>%
+    ggraph(layout="fr") + geom_edge_fan(color="lightblue",
+                        strength = 2,
+                        show.legend = T) +
+    geom_node_point(aes(
+      colour = as.factor(PoliticalOrientation),
+      shape = as.factor(Seriousness),
+      size = deg
+    ),
+    show.legend = T) + 
+     labs(colour = 'PoliticalOrientation', shape = 'Seriousness', size = 'Degree')+
+    geom_node_text(aes(label = id), nudge_y = 0, repel = F)+
+    theme_graph()+
+    ggtitle(paste('Undirected Weighted Graph With Attributes(binomial filter) - gamma ', gamma, sep = ''))
+
+#  ggsave(paste('plot/udf_bi_attr_g',gamma, '.png', sep = ''), width = 13, height = 10, units = 'in')
+
+
+
+
+```
+
+```{r graph with other attributes, fig.height=10, fig.width=15, warning=FALSE}
+
+
+gamma <- 0
+
+  newspapers_un %>% 
+    transform(w1= f1/ntotal,w2= f2/ntotal) %>% 
+    transform(avg_weight = ntotal*w1*w2,sd_weight = sqrt(ntotal*w1*w2*(1-w1*w2))) %>%
+    select(from=n1, to=n2,nshare,avg_weight,sd_weight) %>%
+    filter((nshare-avg_weight)/sd_weight > gamma ) %>%
+    distinct() -> edges
+
+  ud_graph <- tbl_graph(nodes=verticesMerged, edges = edges, node_key = "id", directed = F)
+  ud_graph %>%  activate(nodes) %>% mutate(deg = centrality_degree()) %>%
+    ggraph(layout="fr") + geom_edge_fan(color="lightblue",
+                        strength = 2,
+                        show.legend = T) +
+    geom_node_point(aes(
+      colour = as.factor(Topic),
+      shape = as.factor(Location),
+      size = deg
+    ),
+    show.legend = T) + 
+     labs(colour = 'Topic', shape = 'Location', size = 'Degree')+
+    geom_node_text(aes(label = id), nudge_y = 0, repel = F)+
+    theme_graph()+
+    ggtitle(paste('Undirected Weighted Graph With Attributes(binomial filter) - gamma ', gamma, sep = ''))
+
+#  ggsave(paste('plot/udf_bi_attr1_g',gamma, '.png', sep = ''), width = 13, height = 10, units = 'in')
+
+
+
+
+```
+
+
+
