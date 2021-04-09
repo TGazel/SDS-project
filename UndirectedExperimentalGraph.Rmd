@@ -1,0 +1,165 @@
+---
+title: "Undirected Experimental Graph Analysis"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+---
+
+# Load data
+
+"newspapers_un.Rdata" is for undirected graph. Since there is no direction for edges, it only has half of the rows comparing with "newspapers.Rdata".
+
+"ntotal.Rdata" is the total number of twitter followers in the newspaper space of interests.
+
+Our domain includes 27 newspapers (after preprocess).
+
+
+```{r load data, warning=FALSE}
+# Create plot directory, if it doesn't exist
+dir.create("plot", showWarnings = F)
+
+#load("newspapers.Rdata")    
+load("newspapers_un.Rdata")    
+load("ntotal.RData")
+library(ggraph)
+library(tidygraph)
+library(dplyr)
+library(igraph)
+
+```
+
+# Construct undirected graph
+
+## Create vertices and edges
+```{r undirected vertices and edges, warning=FALSE}
+vertices <- data.frame(id=unique(c(newspapers_un$n1,newspapers_un$n2)))
+
+# Add newspaper attributes
+load("newsAttributes.RData")
+verticesMerged <- inner_join(vertices, newsAttributes)
+
+newspapers_un %>%  transform(weight = nshare/nunion) %>%
+  select(from=n1, to=n2,weight) %>% 
+  distinct(from,to,weight) -> edges
+
+# mean and deviation of weight2
+mean2 <- mean(edges$weight)
+sd2 <- sd(edges$weight,na.rm = F)
+cat('Mean of weigh2: ' ,mean2,'\n', 'Standard deviation of weight2: ', sd2, '\n\n', sep='')
+```
+
+
+## Draw unfiltered graph
+```{r undirected no filtered graph, fig.height=10, fig.width=13, warning=FALSE}
+dir.create("plot/Model1Undirected", showWarnings = F)
+
+ud_graph <- tbl_graph(nodes=verticesMerged, edges = edges, node_key = "id", directed = F)
+ud_graph %>% 
+  ggraph(layout="fr") + geom_edge_fan(color="lightblue",
+                        alpha = .7,
+                        show.legend = T) +
+  geom_node_point(color="red") +
+  geom_node_text(aes(label = id),nudge_y = 0, repel = F) + theme_graph() +
+  ggtitle(paste('Undirected Weighted Graph-No filter', sep = ''))
+
+
+#ggsave(paste('plot/Model1Undirected/ud', '.png', sep = ''), width = 10, height = 10, #units = 'in')
+
+```
+
+## Community Analysis
+
+```{r filtered undirected graph by threshold with communities}
+for (i in c(-2,-1,-0.5,-0.4,-0.35,-0.3,-0.25,-0.2,-0.15,-0.1,-0.05,0,1,2)){ 
+  ud_graph %>% activate(edges) %>% mutate(new_weight = (weight-mean2)/sd2)  %>% filter( new_weight > i ) %>% activate(nodes) %>% mutate(deg = centrality_degree()) %>% activate(nodes) %>% mutate(community = as.character(group_louvain())) -> ud_graphcc1
+  
+  ud_graphcc1 %>% 
+    ggraph(layout="fr") +  geom_edge_fan(color="lightblue",
+                        strength = 2,
+                        end_cap = circle(2, 'mm'),
+                        show.legend = T)+ 
+    geom_node_point(aes(color = community, size = deg)) + 
+    geom_node_text(aes(label = id),nudge_y = 0, repel = FALSE)+
+    theme_graph()+labs(deg = 'Total Degree')+
+    ggtitle(paste('Undirected Weighted Graph with threshold ', i, sep = ''))
+
+#  ggsave(paste('plot/Model1Undirected/udf_t_',i, '.png', sep = ''), width = 10, #height = 10, units = 'in')
+}
+```
+
+
+## Modularity and Assortativity Analysis
+```{r get modularity and assortativity} 
+threshold <- -0.3
+print(paste("Threshold: ", threshold))
+
+ud_graph %>% activate(edges) %>% mutate(new_weight = (weight-mean2)/sd2)  %>% filter( new_weight > threshold ) %>% activate(nodes) %>% mutate(deg = centrality_degree()) %>% activate(nodes) %>% mutate(community = as.character(group_louvain())) -> ud_graphcc2
+
+print("Modularity:")
+ud_graphcc2 %>% 
+  mutate(modularity = graph_modularity(community)) %>% 
+  pull(modularity) %>% 
+  head(1)
+
+print("Assortativity:")
+ud_graphcc2 %>% 
+  mutate(assort = graph_assortativity(community)) %>% 
+  pull(assort)  %>% 
+  head(1)
+```
+
+# Graph With Attributes
+
+
+```{r graph with attributes1, fig.height=10, fig.width=15, warning=FALSE}
+threshold <- -0.3
+print(paste("Threshold: ", threshold))
+
+ud_graph <- tbl_graph(nodes=verticesMerged, edges = edges, node_key = "id", directed = F)
+
+ud_graph %>% activate(edges) %>% mutate(new_weight = (weight-mean2)/sd2)  %>% filter( new_weight > threshold ) %>%  activate(nodes) %>% mutate(deg = centrality_degree()) %>%
+    ggraph(layout="fr") + geom_edge_fan(color="lightblue",
+                        strength = 2,
+                        show.legend = T) +
+    geom_node_point(aes(
+            colour = as.factor(PoliticalOrientation),
+      shape = as.factor(Seriousness),
+      size = deg
+    ),
+    show.legend = T) + 
+     labs(colour = 'PoliticalOrientation', shape = 'Seriousness', size = 'Degree')+
+    geom_node_text(aes(label = id), nudge_y = 0, repel = F)+
+    theme_graph()+ggtitle(paste('Undirected Weighted Graph With Attributes - ','gamma ',threshold, sep = ''))
+
+
+ggsave(paste('plot/Model1Undirected/ud_attr_g',threshold, '.png', sep = ''), width = 15, height = 10, units = 'in')
+
+```
+
+```{r graph with attributes2, fig.height=10, fig.width=15, warning=FALSE}
+threshold <- -0.3
+print(paste("Threshold: ", threshold))
+
+ud_graph <- tbl_graph(nodes=verticesMerged, edges = edges, node_key = "id", directed = F)
+
+ud_graph %>% activate(edges) %>% mutate(new_weight = (weight-mean2)/sd2)  %>% filter( new_weight > threshold ) %>%  activate(nodes) %>% mutate(deg = centrality_degree()) %>%
+    ggraph(layout="fr") + geom_edge_fan(color="lightblue",
+                        strength = 2,
+                        show.legend = T) +
+    geom_node_point(aes(
+      colour = as.factor(Topic),
+      shape = as.factor(Location),
+      size = deg
+    ),
+    show.legend = T) + 
+     labs(colour = 'Topic', shape = 'Location', size = 'Degree')+
+    geom_node_text(aes(label = id), nudge_y = 0, repel = F)+
+    theme_graph()+ggtitle(paste('Undirected Weighted Graph With Attributes - ','gamma ',threshold, sep = ''))
+
+
+#ggsave(paste('plot/Model1Undirected/ud_attr1_g',threshold, '.png', sep = ''), width = #15, height = 10, units = 'in')
+
+```
+
