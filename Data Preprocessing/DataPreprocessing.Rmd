@@ -131,7 +131,6 @@ Further, we construct dataframes for graph construction later. Both directed and
 To run this part, please make sure that directory: "CleanData" is available. Or you can directly start from chunk: "load data".
 
 Construct dataframe for directed graph.
-
 ```{r directed data, warning=FALSE}
 route = "CleanData"
 files <- list.files(route, pattern="*.RData")
