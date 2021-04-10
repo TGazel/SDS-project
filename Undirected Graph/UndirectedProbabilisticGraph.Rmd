@@ -162,10 +162,6 @@ ud_graph %>% ggraph()  + geom_edge_link(aes(color=Shared_followers,width=Shared_
 
 ud_graph %>% ggraph()  + geom_edge_fan(color="lightblue", strength = 2, show.legend = T)  + geom_node_text(size=6,color='black',aes(label=id)) +  theme_graph(background ='white') + geom_node_point(size=3,aes(color=Broadness))+ scale_edge_colour_gradient2(low = "white",mid = "grey",high = "black",midpoint = 0,space = "Lab",na.value = "grey50",guide = "edge_colourbar") + ggtitle(paste('Binomial Model Graph by Broadness  ', sep = ''))
 
-
-
-
-
 ```
 
 ```{r fig.height=10, fig.width=15, warning=FALSE}
@@ -178,9 +174,8 @@ ud_graph %>% ggraph()  + geom_edge_fan(color="lightblue", strength = 2, show.leg
 
 ud_graph %>% ggraph()  + geom_edge_fan(color="lightblue", strength = 2, show.legend = T)  + geom_node_text(size=6,color='black',aes(label=id)) +  theme_graph(background ='white') + geom_node_point(size=4,aes(color=Broadness))+ scale_edge_colour_gradient2(low = "white",mid = "grey",high = "black",midpoint = 0,space = "Lab",na.value = "grey50",guide = "edge_colourbar") + ggtitle(paste('Binomial Model Graph by Broadness  ', sep = ''))
 #ggsave(paste('plot/binomial_Broadness', '.png', sep = ''), width = 15, height = 10, units = 'in')
-
-
 ```
+
 ```{r graph with attributes, fig.height=10, fig.width=15, warning=FALSE}
 vertices <- data.frame(id=unique(c(newspapers_un$n1,newspapers_un$n2)))
 verticesMerged <- inner_join(vertices, newsAttributes)
@@ -211,14 +206,9 @@ gamma <- 0
     ggtitle(paste('Undirected Weighted Graph With Attributes(binomial filter) - gamma ', gamma, sep = ''))
 
 #  ggsave(paste('plot/udf_bi_attr_g',gamma, '.png', sep = ''), width = 13, height = 10, units = 'in')
-
-
-
-
 ```
 
 ```{r graph with other attributes, fig.height=10, fig.width=15, warning=FALSE}
-
 
 gamma <- 0
 
@@ -246,11 +236,4 @@ gamma <- 0
     ggtitle(paste('Undirected Weighted Graph With Attributes(binomial filter) - gamma ', gamma, sep = ''))
 
 #  ggsave(paste('plot/udf_bi_attr1_g',gamma, '.png', sep = ''), width = 13, height = 10, units = 'in')
-
-
-
-
 ```
-
-
-

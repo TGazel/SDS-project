@@ -20,14 +20,12 @@ Our domain includes 27 newspapers (after preprocess).
 # Create plot directory, if it doesn't exist
 dir.create("plot", showWarnings = F)
 
- 
 load("newspapers_un.Rdata")    
 load("ntotal.RData")
 library(ggraph)
 library(tidygraph)
 library(dplyr)
 library(igraph)
-
 
 ```
 
@@ -47,7 +45,6 @@ newspapers_un %>%  transform(weight = nshare/nunion) %>%
 hist(edges$weight,breaks = 20)
 abline(v=mean(edges$weight), lty=2, col="red", lwd=2)
 
-
 hist(edges$new_weight,breaks = 20)
 abline(v=mean(edges$new_weight), lty=2, col="red", lwd=2)
 
@@ -57,9 +54,7 @@ abline(v=mean(edges$avg_weight), lty=2, col="red", lwd=2)
 hist(edges$sd_weight,breaks = 20)
 abline(v=mean(edges$sd_weight), lty=2, col="red", lwd=2)
 
-
 ```
-
 
 ## Correlation Analysis
 ```{r}
@@ -79,6 +74,5 @@ plot(edges$nshare, edges$avg_weight,
      pch = 19, frame = FALSE)
 abline(lm(avg_weight ~ nshare, data = edges), col = "blue")
 text(x=2/3 *max(edges$nshare),y=4e+06,labels= paste("Corr: ",round(cor2,3)))
-
 
 ```

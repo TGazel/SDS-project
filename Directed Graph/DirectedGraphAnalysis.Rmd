@@ -64,7 +64,7 @@ degs <- merge(outdegs, indegs, by ="id")
 ```
 
 ## Analyze graph filtered by thresholds 
-Compute of betweeness centrality for different thresholds: (not used in report)
+Compute of betweeness centrality for different thresholds: (not mentioned in report)
 
 ```{r fig.height=10, fig.width=13}
 d_graph <- tbl_graph(nodes=vertices, edges = edges, node_key = "id", directed = TRUE)
@@ -101,8 +101,6 @@ print(d_graphcc1 %>%
   geom_node_text(aes(label = id),nudge_y = 0, repel = FALSE)+
   theme_graph()+labs(deg = 'Out Degree')+
   ggtitle(paste('Directed Weighted Graph with threshold ', -mean1*log(p), sep = '')))
-
-
 
 #ggsave(paste('plot/df_p_',p, '.png', sep = ''), width = 10, height = 10, units = 'in')
 }
